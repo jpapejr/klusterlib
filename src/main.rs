@@ -184,8 +184,10 @@ fn find_cluster(s: &str, kubeconfig: &yaml_rust::Yaml) -> Option<Cluster> {
             // println!("{:#?}", kubeconfig["contexts"][i]["context"].as_hash().unwrap());
             cluster.name = String::from(s);
             cluster.server= String::from(kubeconfig["clusters"][i]["cluster"]["server"].as_str().unwrap());
-            cluster.certificate_authority = String::from(kubeconfig["clusters"][i]["cluster"]["certificate-authority"].as_str().unwrap());
-            
+            cluster.certificate_authority = match kubeconfig["clusters"][i]["cluster"]["certificate-authority"].as_str() {
+                Some(val) => String::from(val),
+                None => String::new(),
+            };          
         } 
     }
     if cluster.name == "" {
@@ -204,19 +206,32 @@ fn find_user(s: &str, kubeconfig: &yaml_rust::Yaml) -> Option<User> {
     for i in 0..count {
         if kubeconfig["users"][i]["name"].as_str().unwrap() == s {
             //println!("{:#?}", kubeconfig["users"][i]["user"].as_hash().unwrap());
-            if !kubeconfig["users"][i]["user"]["auth-provider"].is_null() {
-                user.name = String::from(s);
-                user.auth_provider.name = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["name"].as_str().unwrap());
-                user.auth_provider.client_id = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["client-id"].as_str().unwrap());
-                user.auth_provider.client_secret = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["client-secret"].as_str().unwrap());
-                user.auth_provider.id_token = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["id-token"].as_str().unwrap());
-                user.auth_provider.idp_issuer_url = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["idp-issuer-url"].as_str().unwrap());
-                user.auth_provider.refresh_token = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["refresh-token"].as_str().unwrap());
-            } else {
-                user.name = String::from(s);
-                user.client_cert = String::from(kubeconfig["users"][i]["user"]["client-certificate"].as_str().unwrap());
-                user.client_key = String::from(kubeconfig["users"][i]["user"]["client-key"].as_str().unwrap());
+            // println!("{:?}", Some(&kubeconfig["users"][i]["user"]["auth-provider"]));
+            match kubeconfig["users"][i]["user"]["auth-provider"] {
+                yaml_rust::Yaml::BadValue => {
+                    match kubeconfig["users"][i]["user"]["client-certificate"] {
+                        yaml_rust::Yaml::BadValue => {
+                            println!("The user data is incomplete for user {}", String::from(s));
+                            Exit(1);
+                        },
+                        _ => {
+                            user.name = String::from(s);
+                            user.client_cert = String::from(kubeconfig["users"][i]["user"]["client-certificate"].as_str().unwrap());
+                            user.client_key = String::from(kubeconfig["users"][i]["user"]["client-key"].as_str().unwrap());
+                        },
+                    }
+                },
+                _ => {
+                    user.name = String::from(s);
+                    user.auth_provider.name = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["name"].as_str().unwrap());
+                    user.auth_provider.client_id = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["client-id"].as_str().unwrap());
+                    user.auth_provider.client_secret = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["client-secret"].as_str().unwrap());
+                    user.auth_provider.id_token = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["id-token"].as_str().unwrap());
+                    user.auth_provider.idp_issuer_url = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["idp-issuer-url"].as_str().unwrap());
+                    user.auth_provider.refresh_token = String::from(kubeconfig["users"][i]["user"]["auth-provider"]["config"]["refresh-token"].as_str().unwrap());
+                },
             }
+            
         } 
     }
     if user.name == "" {
